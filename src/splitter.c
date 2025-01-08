@@ -26,7 +26,6 @@ Splits splits_load(str filename) {
     Splits splits = splits_create();
     for (size_t i = 0; i < lines.len; ++i) {
         str_arr parts = str_split(lines.data[i], ' ');
-        str_println(parts.data[0]);
         splits_append(&splits, split_create(STR(parts.data[0].data), stod(parts.data[1])));
         str_arr_free(parts);
     }
