@@ -22,6 +22,7 @@ typedef struct {
     bool finished;
 } Timer;
 
+Timer timer_create();
 void timer_start(Timer* t);
 void timer_stop(Timer* t);
 void timer_toggle_pause(Timer* t);

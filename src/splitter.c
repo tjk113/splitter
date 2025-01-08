@@ -50,6 +50,15 @@ double time_seconds() {
     //        + (time_centiseconds() / 100);
 }
 
+Timer timer_create() {
+    return (Timer){
+        .start = 0.0,
+        .cur = 0.0,
+        .running = false,
+        .finished = false
+    };
+}
+
 void timer_start(Timer* t) {
     t->start = time_seconds();
     t->cur = time_seconds();
@@ -161,7 +170,7 @@ int main() {
             (Split){0}
         }),
         .cur_split_index = 0,
-        .timer = (Timer){.start = 0.0, .cur = 0.0, .running = false, .finished = false},
+        .timer = timer_create(),
     };
 
     while (!WindowShouldClose()) {
