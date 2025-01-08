@@ -77,43 +77,72 @@ void timer_update(Timer* t) {
     t->cur = time_seconds();
 }
 
-void layout_split(Layout* l) {
-    if (l->cur_split_index + 1 == l->splits.len)
-        timer_stop(&l->timer);
-    l->splits.data[l->cur_split_index++].time = l->timer.cur - l->timer.start;
+// TODO: These functions will control the timer
+// as well as update visible layout elements,
+// e.g. delta colors.
+
+void splitter_start(SplitterState* ss) {
+    timer_start(&ss->timer);
+}
+
+void splitter_stop(SplitterState* ss) {
+    timer_stop(&ss->timer);
+}
+
+void splitter_toggle_pause(SplitterState* ss) {
+    timer_toggle_pause(&ss->timer);
+}
+
+void splitter_update(SplitterState* ss) {
+    timer_update(&ss->timer);
+}
+
+void splitter_split(SplitterState* ss) {
+    if (ss->cur_split_index + 1 == ss->splits.len)
+        timer_stop(&ss->timer);
+    ss->splits.data[ss->cur_split_index++].time = ss->timer.cur - ss->timer.start;
+}
+
+void splitter_reset(SplitterState* ss) {
+    timer_reset(&ss->timer);
+    ss->cur_split_index = 0;
+    // TODO: Load personal best splits instead
+    // of resetting everything.
+    for (size_t i = 0; i < ss->splits.len; ++i)
+        ss->splits.data[i].time = 0.0;
 }
 
 // very hard-coded
-void layout_draw(Layout l) {
+void splitter_draw(SplitterState ss) {
     int width = GetScreenWidth();
     int height = GetScreenHeight();
     // Draw splits
     Color split_color = DARKGRAY;
     int y_offset = 0;
     char text_buf[128] = {0};
-    for (size_t i = 0; i < l.splits.len; ++i) {
+    for (size_t i = 0; i < ss.splits.len; ++i) {
         // Draw background
-        DrawRectangle(0, y_offset, width, l.split_height, split_color);
+        DrawRectangle(0, y_offset, width, ss.layout.split_height, split_color);
 
         // Draw name
-        sprintf(text_buf, "%s", splits_get(l.splits, i).name.data);
-        DrawText(text_buf, 10, y_offset, l.split_height, WHITE);
+        sprintf(text_buf, "%s", splits_get(ss.splits, i).name.data);
+        DrawText(text_buf, 10, y_offset, ss.layout.split_height, WHITE);
         memset(text_buf, 0, sizeof(text_buf));
 
         // Draw time
-        sprintf(text_buf, "0:%05.2f", splits_get(l.splits, i).time);
-        DrawText(text_buf, width - MeasureText(text_buf, l.split_height), y_offset, l.split_height, WHITE);
+        sprintf(text_buf, "0:%05.2f", splits_get(ss.splits, i).time);
+        DrawText(text_buf, width - MeasureText(text_buf, ss.layout.split_height), y_offset, ss.layout.split_height, WHITE);
         memset(text_buf, 0, sizeof(text_buf));
 
-        y_offset += l.split_height;
+        y_offset += ss.layout.split_height;
         split_color = GRAY;
     }
     // Draw timer
-    double delta = l.timer.cur - l.timer.start;
+    double delta = ss.timer.cur - ss.timer.start;
     sprintf(text_buf, "0:%05.2f", delta);
     // I'm not sure where the default value of 5.0 comes from for the spacing...
-    Vector2 measurements = MeasureTextEx(GetFontDefault(), text_buf, l.timer_size, 5.0f);
-    DrawText(text_buf, width - measurements.x, height - measurements.y, l.timer_size, WHITE);
+    Vector2 measurements = MeasureTextEx(GetFontDefault(), text_buf, ss.layout.timer_size, 5.0f);
+    DrawText(text_buf, width - measurements.x, height - measurements.y, ss.layout.timer_size, WHITE);
 }
 
 int main() {
@@ -121,42 +150,49 @@ int main() {
     InitWindow(400, 800, "splitter");
     SetTargetFPS(60);
 
-    Layout layout = (Layout){
+    SplitterState ss = (SplitterState){
+        .layout = (Layout){
+            .split_height = 40,
+            .timer_size = 50
+        },
         .splits = splits_create_from((Split[]){
             split_create(STR("One")),
             split_create(STR("Two")),
             (Split){0}
         }),
         .cur_split_index = 0,
-        .split_height = 40,
         .timer = (Timer){.start = 0.0, .cur = 0.0, .running = false, .finished = false},
-        .timer_size = 50
     };
 
     while (!WindowShouldClose()) {
         switch (GetKeyPressed()) {
             case KEY_SPACE: {
-                if (!layout.timer.running)
-                    timer_start(&layout.timer);
-                else if (layout.timer.finished)
-                    timer_reset(&layout.timer);
+                if (ss.timer.finished)
+                    splitter_reset(&ss);
+                else if (!ss.timer.running)
+                    splitter_start(&ss);
                 else
-                    layout_split(&layout);
+                    splitter_split(&ss);
                 break;
             }
             case KEY_P: {
-                if (!layout.timer.finished)
-                    timer_toggle_pause(&layout.timer);
+                if (!ss.timer.finished)
+                    splitter_toggle_pause(&ss);
+                break;
+            }
+            case KEY_R: {
+                splitter_reset(&ss);
                 break;
             }
         }
-        if (layout.timer.running)
-            timer_update(&layout.timer);
+
+        if (ss.timer.running)
+            splitter_update(&ss);
 
         BeginDrawing();
 
         ClearBackground(BLACK);
-        layout_draw(layout);
+        splitter_draw(ss);
 
         EndDrawing();
     }

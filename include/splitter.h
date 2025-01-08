@@ -29,12 +29,21 @@ void timer_reset(Timer* t);
 void timer_update(Timer* t);
 
 typedef struct {
-    Splits splits;
-    int cur_split_index;
     double split_height;
-    Timer timer;
     double timer_size;
 } Layout;
 
-void layout_split(Layout* l);
-void layout_draw(Layout l);
+typedef struct {
+    Layout layout;
+    Splits splits;
+    int cur_split_index;
+    Timer timer;
+} SplitterState;
+
+void splitter_start(SplitterState* ss);
+void splitter_stop(SplitterState* ss);
+void splitter_toggle_pause(SplitterState* ss);
+void splitter_reset(SplitterState* ss);
+void splitter_update(SplitterState* ss);
+void splitter_split(SplitterState* ss);
+void splitter_draw(SplitterState ss);
