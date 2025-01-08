@@ -62,8 +62,8 @@ void timer_stop(Timer* t) {
     t->finished = true;
 }
 
-void timer_pause(Timer* t) {
-    t->running = false;
+void timer_toggle_pause(Timer* t) {
+    t->running = !t->running;
 }
 
 void timer_reset(Timer* t) {
@@ -75,6 +75,12 @@ void timer_reset(Timer* t) {
 
 void timer_update(Timer* t) {
     t->cur = time_seconds();
+}
+
+void layout_split(Layout* l) {
+    if (l->cur_split_index + 1 == l->splits.len)
+        timer_stop(&l->timer);
+    l->splits.data[l->cur_split_index++].time = l->timer.cur - l->timer.start;
 }
 
 // very hard-coded
@@ -121,15 +127,31 @@ int main() {
             split_create(STR("Two")),
             (Split){0}
         }),
-        .cur_split_index = -1,
+        .cur_split_index = 0,
         .split_height = 40,
         .timer = (Timer){.start = 0.0, .cur = 0.0, .running = false, .finished = false},
         .timer_size = 50
     };
 
-    timer_start(&layout.timer);
     while (!WindowShouldClose()) {
-        timer_update(&layout.timer);
+        switch (GetKeyPressed()) {
+            case KEY_SPACE: {
+                if (!layout.timer.running)
+                    timer_start(&layout.timer);
+                else if (layout.timer.finished)
+                    timer_reset(&layout.timer);
+                else
+                    layout_split(&layout);
+                break;
+            }
+            case KEY_P: {
+                if (!layout.timer.finished)
+                    timer_toggle_pause(&layout.timer);
+                break;
+            }
+        }
+        if (layout.timer.running)
+            timer_update(&layout.timer);
 
         BeginDrawing();
 

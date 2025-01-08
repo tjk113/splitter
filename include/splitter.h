@@ -24,7 +24,7 @@ typedef struct {
 
 void timer_start(Timer* t);
 void timer_stop(Timer* t);
-void timer_pause(Timer* t);
+void timer_toggle_pause(Timer* t);
 void timer_reset(Timer* t);
 void timer_update(Timer* t);
 
@@ -36,4 +36,5 @@ typedef struct {
     double timer_size;
 } Layout;
 
+void layout_split(Layout* l);
 void layout_draw(Layout l);
