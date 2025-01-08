@@ -3,14 +3,15 @@
 
 #include <sys/time.h>
 
+#include <fiesta/file.h>
 #include <fiesta/str.h>
 #include <raylib.h>
 
 #include "splitter.h"
 #include "array.h"
 
-Split split_create(str name) {
-    return (Split){.name = name, .time = 0.0};
+Split split_create(str name, double time) {
+    return (Split){.name = name, .time = time};
 }
 
 void split_free(Split s) {
@@ -18,6 +19,39 @@ void split_free(Split s) {
 }
 
 _GENERATE_ARRAY_IMPLEMENTATIONS(Split, split)
+
+Splits splits_load(str filename) {
+    File file = file_open(filename, FileRead);
+    str_arr lines = file_read_lines(&file, 128);
+    Splits splits = splits_create();
+    for (size_t i = 0; i < lines.len; ++i) {
+        str_arr parts = str_split(lines.data[i], ' ');
+        str_println(parts.data[0]);
+        splits_append(&splits, split_create(STR(parts.data[0].data), stod(parts.data[1])));
+        str_arr_free(parts);
+    }
+    str_arr_free(lines);
+    file_close(&file);
+    return splits;
+}
+
+void splits_save(str filename, Splits splits) {
+    File file = file_open(filename, FileWrite);
+    for (size_t i = 0; i < splits.len; ++i) {
+        char num_buf[128] = {0};
+        sprintf(num_buf, "%f", splits.data[i].time);
+
+        dynstr out = dynstr_create_from(splits.data[i].name.data);
+        dynstr_append_char(&out, ' ');
+        str num_str = str_create_from(num_buf);
+        dynstr_append_str(&out, num_str);
+        dynstr_append_char(&out, '\n');
+
+        file_write_str(&file, dynstr_to_str(&out));
+        str_free(num_str);
+    }
+    file_close(&file);
+}
 
 // https://stackoverflow.com/a/31652223
 
@@ -165,8 +199,8 @@ int main() {
             .timer_size = 50
         },
         .splits = splits_create_from((Split[]){
-            split_create(STR("One")),
-            split_create(STR("Two")),
+            split_create(STR("One"), 0.0),
+            split_create(STR("Two"), 0.0),
             (Split){0}
         }),
         .cur_split_index = 0,
@@ -193,6 +227,16 @@ int main() {
                 splitter_reset(&ss);
                 break;
             }
+            // case KEY_S: {
+            //     splits_save(STR("out.splits"), ss.splits);
+            //     break;
+            // }
+            // case KEY_L: {
+            //     if (ss.timer.running)
+            //         splitter_reset(&ss);
+            //     ss.splits = splits_load(STR("test.splits"));
+            //     break;
+            // }
         }
 
         if (ss.timer.running)
