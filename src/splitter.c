@@ -85,15 +85,6 @@ void splits_save(str filename, Splits splits) {
     file_close(&file);
 }
 
-Timer timer_create() {
-    return (Timer){
-        .start = 0.0,
-        .cur = 0.0,
-        .running = false,
-        .finished = false
-    };
-}
-
 void timer_start(Timer* t) {
     clock_gettime(CLOCK_MONOTONIC, &t->start);
     clock_gettime(CLOCK_MONOTONIC, &t->cur);
@@ -206,7 +197,7 @@ int main() {
             (Split){0}
         }),
         .cur_split_index = 0,
-        .timer = timer_create(),
+        .timer = (Timer){0},
     };
 
     while (!WindowShouldClose()) {

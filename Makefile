@@ -11,23 +11,24 @@ I := include/
 S := src/
 B := bin/
 
-FIESTA_PATH := third-party/fiesta
 
 ifeq ($(PLATFORM), Windows)
-	RAYLIB_PATH := third-party/raylib-5.5_win64_mingw-w64/
+	RAYLIB_PATH := third-party/win/raylib-5.5_win64_mingw-w64/
+	FIESTA_PATH := third-party/win/fiesta
 else
-	RAYLIB_PATH := third-party/raylib-5.5_linux_amd64/
+	RAYLIB_PATH := third-party/linux/raylib-5.5_linux_amd64/
+	FIESTA_PATH := third-party/linux/fiesta
 endif
 
 RAYLIB_LIB_PATH := $(RAYLIB_PATH)lib
 RAYLIB_INCLUDE_PATH := $(RAYLIB_PATH)include
 
-FLAGS := -I$(I) -I$(RAYLIB_INCLUDE_PATH) -I$(FIESTA_PATH)/include -std=c23 -L$(FIESTA_PATH)/lib -lfiesta -L$(RAYLIB_LIB_PATH) -lraylib
+FLAGS := -I$(I) -I$(RAYLIB_INCLUDE_PATH) -I$(FIESTA_PATH)/include -std=c23 -L$(FIESTA_PATH)/lib -lfiesta -L$(RAYLIB_LIB_PATH) -l:libraylib.a
 
 ifeq ($(PLATFORM), Windows)
 	FLAGS += -lopengl32 -lgdi32 -lwinmm
 else
-	FLAGS += -lGL -lm -lpthread -ldl -lrt -lX11
+	FLAGS += -D_POSIX_C_SOURCE=199309L -lGL -lm -lpthread -ldl -lrt -lX11
 endif
 
 OBJ_FILES = $(B)splitter.o $(B)array.o
