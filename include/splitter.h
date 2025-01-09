@@ -1,6 +1,7 @@
 #pragma once
 
 #include <stdint.h>
+#include <time.h>
 
 #include <fiesta/str.h>
 
@@ -8,10 +9,10 @@
 
 typedef struct {
     str name;
-    double time;
+    struct timespec time;
 } Split;
 
-Split split_create(str name, double time);
+Split split_create(str name, struct timespec time);
 void split_free(Split s);
 _GENERATE_FUNCTION_PROTOTYPES(Split, split)
 
@@ -19,8 +20,8 @@ Splits splits_load(str filename);
 void splits_save(str filename, Splits splits);
 
 typedef struct {
-    double start;
-    double cur;
+    struct timespec start;
+    struct timespec cur;
     bool running;
     bool finished;
 } Timer;

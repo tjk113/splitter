@@ -1,7 +1,8 @@
+#include <inttypes.h>
 #include <stdint.h>
 #include <stdio.h>
-
-#include <sys/time.h>
+#include <time.h>
+#include <math.h>
 
 #include <fiesta/file.h>
 #include <fiesta/str.h>
@@ -10,7 +11,35 @@
 #include "splitter.h"
 #include "array.h"
 
-Split split_create(str name, double time) {
+// TODO: There might still be some bugs in
+// how these digits of precision are being
+// calculated...
+
+double centiseconds(struct timespec ts) {
+    return (double)(ts.tv_nsec) / 10000000000;
+}
+
+double deciseconds(struct timespec ts) {
+    return (double)(ts.tv_nsec) / 1000000000;
+}
+
+// 2 digits of precision
+double seconds(struct timespec ts) {
+    return (double)ts.tv_sec + deciseconds(ts) + centiseconds(ts);
+}
+
+uint64_t minutes(struct timespec ts) {
+    return (uint64_t)(ts.tv_sec / 60);
+}
+
+struct timespec delta(struct timespec a, struct timespec b) {
+    return (struct timespec){
+        .tv_sec = abs(a.tv_sec - b.tv_sec),
+        .tv_nsec = abs(a.tv_nsec - b.tv_nsec)
+    };
+}
+
+Split split_create(str name, struct timespec time) {
     return (Split){.name = name, .time = time};
 }
 
@@ -26,7 +55,11 @@ Splits splits_load(str filename) {
     Splits splits = splits_create();
     for (size_t i = 0; i < lines.len; ++i) {
         str_arr parts = str_split(lines.data[i], ' ');
-        splits_append(&splits, split_create(STR(parts.data[0].data), stod(parts.data[1])));
+        struct timespec ts = {
+            .tv_sec = stoi(parts.data[1]),
+            .tv_nsec = stoi(parts.data[2]),
+        };
+        splits_append(&splits, split_create(STR(parts.data[0].data), ts));
         str_arr_free(parts);
     }
     str_arr_free(lines);
@@ -38,7 +71,7 @@ void splits_save(str filename, Splits splits) {
     File file = file_open(filename, FileWrite);
     for (size_t i = 0; i < splits.len; ++i) {
         char num_buf[128] = {0};
-        sprintf(num_buf, "%f", splits.data[i].time);
+        sprintf(num_buf, "%"PRIi64" %"PRIi64, splits.data[i].time.tv_sec, splits.data[i].time.tv_nsec);
 
         dynstr out = dynstr_create_from(splits.data[i].name.data);
         dynstr_append_char(&out, ' ');
@@ -52,37 +85,6 @@ void splits_save(str filename, Splits splits) {
     file_close(&file);
 }
 
-// https://stackoverflow.com/a/31652223
-
-// TODO: Un-jank this whole thing.
-
-double time_centiseconds() {
-    struct timeval tv;
-
-    gettimeofday(&tv, NULL);
-    return ((double)tv.tv_sec) + (tv.tv_usec / 10000);
-}
-
-double time_deciseconds() {
-    struct timeval tv;
-
-    gettimeofday(&tv, NULL);
-    return ((double)tv.tv_sec) + (tv.tv_usec / 100000);
-}
-
-double time_seconds() {
-    struct timeval tv;
-
-    gettimeofday(&tv, NULL);
-    return ((double)tv.tv_sec)
-           + (tv.tv_usec / 1000000);
-    // TODO: Draw font letters with consistent
-    // spacing so that including more precision
-    // doesn't cause the timer to jump around.
-    //        + (time_deciseconds() / 10)
-    //        + (time_centiseconds() / 100);
-}
-
 Timer timer_create() {
     return (Timer){
         .start = 0.0,
@@ -93,8 +95,8 @@ Timer timer_create() {
 }
 
 void timer_start(Timer* t) {
-    t->start = time_seconds();
-    t->cur = time_seconds();
+    clock_gettime(CLOCK_MONOTONIC, &t->start);
+    clock_gettime(CLOCK_MONOTONIC, &t->cur);
     t->running = true;
     t->finished = false;
 }
@@ -109,14 +111,14 @@ void timer_toggle_pause(Timer* t) {
 }
 
 void timer_reset(Timer* t) {
-    t->start = 0.0;
-    t->cur = 0.0;
+    memset(&t->start, 0, sizeof(struct timespec));
+    memset(&t->cur, 0, sizeof(struct timespec));
     t->running = false;
     t->finished = false;
 }
 
 void timer_update(Timer* t) {
-    t->cur = time_seconds();
+    clock_gettime(CLOCK_MONOTONIC, &t->cur);
 }
 
 // TODO: These functions will control the timer
@@ -142,7 +144,7 @@ void splitter_update(SplitterState* ss) {
 void splitter_split(SplitterState* ss) {
     if (ss->cur_split_index + 1 == ss->splits.len)
         timer_stop(&ss->timer);
-    ss->splits.data[ss->cur_split_index++].time = ss->timer.cur - ss->timer.start;
+    ss->splits.data[ss->cur_split_index++].time = delta(ss->timer.cur, ss->timer.start);
 }
 
 void splitter_reset(SplitterState* ss) {
@@ -151,7 +153,7 @@ void splitter_reset(SplitterState* ss) {
     // TODO: Load personal best splits instead
     // of resetting everything.
     for (size_t i = 0; i < ss->splits.len; ++i)
-        ss->splits.data[i].time = 0.0;
+        memset(&ss->splits.data[i].time, 0, sizeof(struct timespec));
 }
 
 // very hard-coded
@@ -172,7 +174,8 @@ void splitter_draw(SplitterState ss) {
         memset(text_buf, 0, sizeof(text_buf));
 
         // Draw time
-        sprintf(text_buf, "0:%05.2f", splits_get(ss.splits, i).time);
+        struct timespec split_time = splits_get(ss.splits, i).time;
+        sprintf(text_buf, "%"PRIu64":%05.2f", minutes(split_time), fmod(seconds(split_time), 60));
         DrawText(text_buf, width - MeasureText(text_buf, ss.layout.split_height), y_offset, ss.layout.split_height, WHITE);
         memset(text_buf, 0, sizeof(text_buf));
 
@@ -180,8 +183,8 @@ void splitter_draw(SplitterState ss) {
         split_color = GRAY;
     }
     // Draw timer
-    double delta = ss.timer.cur - ss.timer.start;
-    sprintf(text_buf, "0:%05.2f", delta);
+    struct timespec delta_time = delta(ss.timer.cur, ss.timer.start);
+    sprintf(text_buf, "%"PRIu64":%05.2f", minutes(delta_time), fmod(seconds(delta_time), 60));
     // I'm not sure where the default value of 5.0 comes from for the spacing...
     Vector2 measurements = MeasureTextEx(GetFontDefault(), text_buf, ss.layout.timer_size, 5.0f);
     DrawText(text_buf, width - measurements.x, height - measurements.y, ss.layout.timer_size, WHITE);
@@ -198,8 +201,8 @@ int main() {
             .timer_size = 50
         },
         .splits = splits_create_from((Split[]){
-            split_create(STR("One"), 0.0),
-            split_create(STR("Two"), 0.0),
+            split_create(STR("One"), (struct timespec){0}),
+            split_create(STR("Two"), (struct timespec){0}),
             (Split){0}
         }),
         .cur_split_index = 0,
@@ -226,16 +229,16 @@ int main() {
                 splitter_reset(&ss);
                 break;
             }
-            // case KEY_S: {
-            //     splits_save(STR("out.splits"), ss.splits);
-            //     break;
-            // }
-            // case KEY_L: {
-            //     if (ss.timer.running)
-            //         splitter_reset(&ss);
-            //     ss.splits = splits_load(STR("test.splits"));
-            //     break;
-            // }
+            case KEY_S: {
+                splits_save(STR("out.splits"), ss.splits);
+                break;
+            }
+            case KEY_L: {
+                if (ss.timer.running)
+                    splitter_reset(&ss);
+                ss.splits = splits_load(STR("out.splits"));
+                break;
+            }
         }
 
         if (ss.timer.running)
