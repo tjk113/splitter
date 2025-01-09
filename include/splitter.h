@@ -13,7 +13,7 @@ typedef struct {
 
 Split split_create(str name, double time);
 void split_free(Split s);
-_GENERATE_ARRAY_SIGNATURES(Split, split)
+_GENERATE_FUNCTION_PROTOTYPES(Split, split)
 
 Splits splits_load(str filename);
 void splits_save(str filename, Splits splits);
@@ -50,6 +50,4 @@ void splitter_toggle_pause(SplitterState* ss);
 void splitter_reset(SplitterState* ss);
 void splitter_update(SplitterState* ss);
 void splitter_split(SplitterState* ss);
-void splitter_load_run(SplitterState* ss, Splits s);
-void splitter_save_run(SplitterState* ss, Splits s);
 void splitter_draw(SplitterState ss);
